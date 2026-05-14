@@ -87,6 +87,22 @@
                     <TextBlock Grid.Column="0" Text="Copyright" Foreground="{StaticResource FgMuted}" FontSize="12"/>
                     <TextBlock Grid.Column="1" Text="© 2026 JohnBird" Foreground="{StaticResource Fg}" FontSize="13"/>
                 </Grid>
+                <Border Background="{StaticResource BorderSubtle}" Height="1" Margin="0,12"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="{StaticResource FgMuted}" FontSize="12" Text="Support development"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="13">
+                        <Hyperlink NavigateUri="https://www.paypal.com/donate/?business=ypoulis@gmail.com&amp;item_name=BastionFlow&amp;currency_code=EUR"
+                                   RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="#0070BA"
+                                   TextDecorations="Underline">
+                            Donate via PayPal
+                        </Hyperlink>
+                    </TextBlock>
+                </Grid>
             </StackPanel>
         </Border>
 

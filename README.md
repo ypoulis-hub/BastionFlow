@@ -13,8 +13,9 @@ Connect to any Azure VM in your tenant — Entra-joined, AD-joined, or stand-alo
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![Release](https://img.shields.io/github/v/release/ypoulis-hub/BastionFlow?include_prereleases&sort=semver)](../../releases)
 [![Downloads](https://img.shields.io/github/downloads/ypoulis-hub/BastionFlow/total.svg)](../../releases)
+[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=ypoulis@gmail.com&item_name=BastionFlow&currency_code=EUR)
 
-[Download installer](../../releases/latest) · [Report bug](../../issues) · [Request feature](../../issues)
+[Download installer](../../releases/latest) · [Report bug](../../issues) · [Request feature](../../issues) · [Donate ☕](https://www.paypal.com/donate/?business=ypoulis@gmail.com&item_name=BastionFlow&currency_code=EUR)
 
 </div>
 
@@ -143,6 +144,14 @@ PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, c
 ## Security
 
 If you find a security issue, please follow [SECURITY.md](SECURITY.md) — do **not** open a public issue.
+
+## Support development
+
+BastionFlow is free and MIT-licensed. If it saves you a few hours of debugging Bastion AAD-RDP, a small donation keeps it actively maintained:
+
+[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white&style=for-the-badge)](https://www.paypal.com/donate/?business=ypoulis@gmail.com&item_name=BastionFlow&currency_code=EUR)
+
+**PayPal:** [ypoulis@gmail.com](https://www.paypal.com/donate/?business=ypoulis@gmail.com&item_name=BastionFlow&currency_code=EUR) — any amount is appreciated and goes towards a code-signing cert + future feature work.
 
 ## License
 
