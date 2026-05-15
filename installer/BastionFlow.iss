@@ -126,17 +126,28 @@ end;
 function IsMsrdcInstalled(): Boolean;
 var
   ResultCode: Integer;
+  RegPath: String;
 begin
-  { Microsoft.RemoteDesktopClient (MSI from winget) installs here. }
+  // Microsoft.RemoteDesktopClient (MSI from winget) installs here.
   if FileExists(ExpandConstant('{commonpf}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
   if FileExists(ExpandConstant('{commonpf32}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
-  { Per-user install variant. }
+  // Per-user MSI install variants.
   if FileExists(ExpandConstant('{localappdata}\Apps\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
   if FileExists(ExpandConstant('{userpf}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
-  { MSIX (Microsoft Store / Windows App) install — folder name is versioned. }
+  // Store-app alias under WindowsApps (these are reparse points users can run directly).
+  if FileExists(ExpandConstant('{localappdata}\Microsoft\WindowsApps\msrdc.exe')) then begin Result := True; Exit; end;
+  if FileExists(ExpandConstant('{localappdata}\Microsoft\WindowsApps\WindowsApp.exe')) then begin Result := True; Exit; end;
+  // MSIX install folders (legacy + new "Windows App" rebrand).
   if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\Microsoft.RemoteDesktopClient_*')) then begin Result := True; Exit; end;
   if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\MicrosoftCorporationII.RemoteDesktopClient_*')) then begin Result := True; Exit; end;
-  { Last resort: PATH probe (may pick up Store app aliases or other layouts). }
+  if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\MicrosoftWindows.WindowsApp_*')) then begin Result := True; Exit; end;
+  if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\MicrosoftCorporationII.WindowsApp_*')) then begin Result := True; Exit; end;
+  // Registry App Paths — Windows registers any "shell-runnable" exe here.
+  if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msrdc.exe', '', RegPath) and (RegPath <> '') then
+    if FileExists(RegPath) then begin Result := True; Exit; end;
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msrdc.exe', '', RegPath) and (RegPath <> '') then
+    if FileExists(RegPath) then begin Result := True; Exit; end;
+  // Last resort: PATH probe (catches user-customised installs).
   Result := Exec('cmd.exe', '/c where msrdc.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
