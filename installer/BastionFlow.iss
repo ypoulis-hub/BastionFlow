@@ -72,13 +72,39 @@ Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+function HasFolderMatching(const Pattern: String): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(Pattern, FindRec) then
+  begin
+    try Result := True; finally FindClose(FindRec); end;
+  end;
+end;
+
+function DotNetDesktopInDir(const Dir: String): Boolean;
+{ Returns true if <Dir>\shared\Microsoft.WindowsDesktop.App\8.* contains any folder. }
+begin
+  Result := HasFolderMatching(Dir + '\shared\Microsoft.WindowsDesktop.App\8.*');
+end;
+
 function IsDotNet8DesktopInstalled(): Boolean;
 var
   ResultCode: Integer;
   Buf: AnsiString;
   TmpFile: String;
 begin
-  Result := False;
+  // Filesystem check first — works even when PATH hasn't been refreshed after
+  // a fresh install. .NET installs into <ProgramFiles>\dotnet for the native
+  // arch, or under x64/arm64 sub-folders on cross-arch installs.
+  Result := DotNetDesktopInDir(ExpandConstant('{commonpf}\dotnet'))
+         or DotNetDesktopInDir(ExpandConstant('{commonpf}\dotnet\x64'))
+         or DotNetDesktopInDir(ExpandConstant('{commonpf}\dotnet\arm64'))
+         or DotNetDesktopInDir(ExpandConstant('{commonpf32}\dotnet'));
+  if Result then Exit;
+
+  { Fallback: try the CLI (only works if dotnet is on PATH). }
   TmpFile := ExpandConstant('{tmp}\dnruntimes.txt');
   if Exec(ExpandConstant('{cmd}'), '/c dotnet --list-runtimes > "' + TmpFile + '" 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
@@ -91,13 +117,27 @@ function IsAzCliInstalled(): Boolean;
 var
   ResultCode: Integer;
 begin
+  { Standard install paths first, then PATH probe. }
+  if FileExists(ExpandConstant('{commonpf}\Microsoft SDKs\Azure\CLI2\wbin\az.cmd')) then begin Result := True; Exit; end;
+  if FileExists(ExpandConstant('{commonpf32}\Microsoft SDKs\Azure\CLI2\wbin\az.cmd')) then begin Result := True; Exit; end;
   Result := Exec('cmd.exe', '/c where az.cmd >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
 function IsMsrdcInstalled(): Boolean;
+var
+  ResultCode: Integer;
 begin
-  Result := FileExists(ExpandConstant('{commonpf}\Remote Desktop\msrdc.exe'))
-         or FileExists(ExpandConstant('{commonpf32}\Remote Desktop\msrdc.exe'));
+  { Microsoft.RemoteDesktopClient (MSI from winget) installs here. }
+  if FileExists(ExpandConstant('{commonpf}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
+  if FileExists(ExpandConstant('{commonpf32}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
+  { Per-user install variant. }
+  if FileExists(ExpandConstant('{localappdata}\Apps\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
+  if FileExists(ExpandConstant('{userpf}\Remote Desktop\msrdc.exe')) then begin Result := True; Exit; end;
+  { MSIX (Microsoft Store / Windows App) install — folder name is versioned. }
+  if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\Microsoft.RemoteDesktopClient_*')) then begin Result := True; Exit; end;
+  if HasFolderMatching(ExpandConstant('{commonpf}\WindowsApps\MicrosoftCorporationII.RemoteDesktopClient_*')) then begin Result := True; Exit; end;
+  { Last resort: PATH probe (may pick up Store app aliases or other layouts). }
+  Result := Exec('cmd.exe', '/c where msrdc.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
 function WingetAvailable(): Boolean;
