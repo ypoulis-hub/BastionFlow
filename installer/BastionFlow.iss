@@ -107,34 +107,38 @@ begin
   Result := Exec('cmd.exe', '/c where winget >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;
 
-procedure InstallViaWinget(const PackageId: String; const Description: String);
-var
-  ResultCode: Integer;
-begin
-  WizardForm.StatusLabel.Caption := 'Installing ' + Description + ' via winget (this may take a few minutes)...';
-  WizardForm.StatusLabel.Update();
-  Exec('cmd.exe',
-       '/c winget install --id ' + PackageId + ' --accept-package-agreements --accept-source-agreements --silent --disable-interactivity',
-       '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
-end;
-
 procedure CheckAndInstallDependencies();
 var
   MissingList: String;
-  Msg: String;
+  MissingCount, InstalledCount, Index, Total: Integer;
+  ResultCode: Integer;
+  OkDotNet, OkAz, OkMsrdc: Boolean;
+  Summary: String;
 begin
+  { Build the missing list. }
   MissingList := '';
-  if not IsDotNet8DesktopInstalled() then MissingList := MissingList + #13#10 + '  • .NET 8 Desktop Runtime';
-  if not IsAzCliInstalled() then MissingList := MissingList + #13#10 + '  • Azure CLI';
-  if not IsMsrdcInstalled() then MissingList := MissingList + #13#10 + '  • Microsoft Remote Desktop client (msrdc)';
+  MissingCount := 0;
+  if not IsDotNet8DesktopInstalled() then begin
+    MissingList := MissingList + #13#10 + '  - .NET 8 Desktop Runtime';
+    Inc(MissingCount);
+  end;
+  if not IsAzCliInstalled() then begin
+    MissingList := MissingList + #13#10 + '  - Azure CLI';
+    Inc(MissingCount);
+  end;
+  if not IsMsrdcInstalled() then begin
+    MissingList := MissingList + #13#10 + '  - Microsoft Remote Desktop client (msrdc)';
+    Inc(MissingCount);
+  end;
 
-  if Length(MissingList) = 0 then Exit;
+  if MissingCount = 0 then Exit;
 
-  Msg := 'BastionFlow needs the following components that are not installed yet:' + #13#10 +
-         MissingList + #13#10 + #13#10 +
-         'Install them now? (Recommended)';
-
-  if MsgBox(Msg, mbConfirmation, MB_YESNO) <> IDYES then Exit;
+  if MsgBox(
+       'BastionFlow needs the following components that are not installed yet:' + #13#10 +
+       MissingList + #13#10 + #13#10 +
+       'Install them now via winget?' + #13#10 +
+       '(A console window will open for each one — please wait until it closes before continuing.)',
+       mbConfirmation, MB_YESNO) <> IDYES then Exit;
 
   if not WingetAvailable() then
   begin
@@ -147,11 +151,69 @@ begin
     Exit;
   end;
 
-  if not IsDotNet8DesktopInstalled() then InstallViaWinget('Microsoft.DotNet.DesktopRuntime.8', '.NET 8 Desktop Runtime');
-  if not IsAzCliInstalled() then InstallViaWinget('Microsoft.AzureCLI', 'Azure CLI');
-  if not IsMsrdcInstalled() then InstallViaWinget('Microsoft.RemoteDesktopClient', 'Microsoft Remote Desktop');
+  Total := MissingCount;
+  Index := 0;
+  InstalledCount := 0;
+  OkDotNet := True; OkAz := True; OkMsrdc := True;
 
-  WizardForm.StatusLabel.Caption := 'Dependency installation complete.';
+  if not IsDotNet8DesktopInstalled() then
+  begin
+    Inc(Index);
+    WizardForm.StatusLabel.Caption :=
+      Format('[%d/%d] Installing .NET 8 Desktop Runtime — see the console window...', [Index, Total]);
+    WizardForm.Update();
+    Exec('cmd.exe',
+         '/c winget install --id "Microsoft.DotNet.DesktopRuntime.8" --accept-package-agreements --accept-source-agreements',
+         '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    OkDotNet := IsDotNet8DesktopInstalled();
+    if OkDotNet then Inc(InstalledCount);
+  end;
+
+  if not IsAzCliInstalled() then
+  begin
+    Inc(Index);
+    WizardForm.StatusLabel.Caption :=
+      Format('[%d/%d] Installing Azure CLI — see the console window...', [Index, Total]);
+    WizardForm.Update();
+    Exec('cmd.exe',
+         '/c winget install --id "Microsoft.AzureCLI" --accept-package-agreements --accept-source-agreements',
+         '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    OkAz := IsAzCliInstalled();
+    if OkAz then Inc(InstalledCount);
+  end;
+
+  if not IsMsrdcInstalled() then
+  begin
+    Inc(Index);
+    WizardForm.StatusLabel.Caption :=
+      Format('[%d/%d] Installing Microsoft Remote Desktop client — see the console window...', [Index, Total]);
+    WizardForm.Update();
+    Exec('cmd.exe',
+         '/c winget install --id "Microsoft.RemoteDesktopClient" --accept-package-agreements --accept-source-agreements',
+         '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    OkMsrdc := IsMsrdcInstalled();
+    if OkMsrdc then Inc(InstalledCount);
+  end;
+
+  WizardForm.StatusLabel.Caption :=
+    Format('Dependency install complete: %d of %d succeeded.', [InstalledCount, Total]);
+  WizardForm.Update();
+
+  { Final summary. Show what succeeded and what didn't. }
+  Summary := 'Dependency install finished:' + #13#10;
+  if not OkDotNet then Summary := Summary + #13#10 + '  [FAILED] .NET 8 Desktop Runtime — BastionFlow will not start without this.'
+  else                 Summary := Summary + #13#10 + '  [OK] .NET 8 Desktop Runtime';
+  if not OkAz then     Summary := Summary + #13#10 + '  [FAILED] Azure CLI — BastionFlow needs this to drive Bastion.'
+  else                 Summary := Summary + #13#10 + '  [OK] Azure CLI';
+  if not OkMsrdc then  Summary := Summary + #13#10 + '  [FAILED] Microsoft Remote Desktop client — connections will fail without this.'
+  else                 Summary := Summary + #13#10 + '  [OK] Microsoft Remote Desktop client';
+
+  if OkDotNet and OkAz and OkMsrdc then
+    Summary := Summary + #13#10 + #13#10 + 'BastionFlow is ready to launch.'
+  else
+    Summary := Summary + #13#10 + #13#10 + 'You can install the failed items manually later — see https://github.com/ypoulis-hub/BastionFlow for links.';
+
+  MsgBox(Summary, mbInformation, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
