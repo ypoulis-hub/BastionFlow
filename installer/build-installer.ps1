@@ -1,14 +1,17 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-    Builds the BastionFlow installer.
+    Builds the BastionFlow multi-architecture installer.
 .DESCRIPTION
-    1. Publishes BastionFlow.App in Release / win-x64 / framework-dependent mode
-       to <repo>/publish/.
+    1. Publishes BastionFlow.App for BOTH win-x64 and win-arm64 (framework-
+       dependent) into <repo>/publish-x64/ and <repo>/publish-arm64/.
     2. Locates Inno Setup's ISCC.exe (winget package: JRSoftware.InnoSetup).
-    3. Compiles installer/BastionFlow.iss to <repo>/dist/BastionFlow-Setup-<ver>.exe.
+    3. Compiles installer/BastionFlow.iss into a single installer that detects
+       the runtime architecture and installs the matching binaries.
 
     Run from anywhere — paths are derived relative to this script.
+.PARAMETER SkipPublish
+    Skip the dotnet publish step (useful for iterating on the .iss).
 #>
 [CmdletBinding()]
 param(
@@ -18,26 +21,41 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$publishDir = Join-Path $repo 'publish'
+$publishX64   = Join-Path $repo 'publish-x64'
+$publishArm64 = Join-Path $repo 'publish-arm64'
 $distDir = Join-Path $repo 'dist'
 $iss = Join-Path $PSScriptRoot 'BastionFlow.iss'
 
-if (-not $SkipPublish) {
-    Write-Host "[1/3] Cleaning publish folder..." -ForegroundColor Cyan
-    if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
-
-    Write-Host "[2/3] Publishing BastionFlow.App ($Configuration, win-x64, framework-dependent)..." -ForegroundColor Cyan
+function Publish-Arch {
+    param([string]$Runtime, [string]$OutDir)
+    Write-Host "  -> $Runtime to $OutDir" -ForegroundColor DarkGray
+    if (Test-Path $OutDir) { Remove-Item $OutDir -Recurse -Force }
     & dotnet publish (Join-Path $repo 'src\BastionFlow.App') `
         -c $Configuration `
-        -r win-x64 `
+        -r $Runtime `
         --self-contained false `
         -p:PublishSingleFile=false `
         -p:UseAppHost=true `
-        -o $publishDir
-    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
-} else {
-    Write-Host "[1-2/3] Skipping publish (-SkipPublish)." -ForegroundColor DarkGray
+        -o $OutDir | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $Runtime (exit $LASTEXITCODE)" }
 }
+
+if (-not $SkipPublish) {
+    Write-Host "[1/3] Publishing both architectures..." -ForegroundColor Cyan
+    Publish-Arch -Runtime 'win-x64'   -OutDir $publishX64
+    Publish-Arch -Runtime 'win-arm64' -OutDir $publishArm64
+} else {
+    Write-Host "[1/3] Skipping publish (-SkipPublish)." -ForegroundColor DarkGray
+    foreach ($dir in @($publishX64, $publishArm64)) {
+        if (-not (Test-Path $dir)) {
+            throw "Required publish folder missing: $dir. Re-run without -SkipPublish."
+        }
+    }
+}
+
+$x64Bin = (Get-ChildItem $publishX64 -File -Recurse | Measure-Object Length -Sum).Sum
+$armBin = (Get-ChildItem $publishArm64 -File -Recurse | Measure-Object Length -Sum).Sum
+Write-Host ("[2/3] Publish output: x64 {0:N1} MB, arm64 {1:N1} MB" -f ($x64Bin/1MB), ($armBin/1MB)) -ForegroundColor Cyan
 
 # Locate ISCC
 $iscc = (Get-Command iscc -ErrorAction SilentlyContinue)?.Source
@@ -62,7 +80,7 @@ $produced = Get-ChildItem $distDir -Filter 'BastionFlow-Setup-*.exe' | Sort-Obje
 if ($produced) {
     Write-Host ""
     Write-Host "Installer built: $($produced.FullName)" -ForegroundColor Green
-    Write-Host "Size: $([math]::Round($produced.Length / 1MB, 1)) MB"
+    Write-Host "Size: $([math]::Round($produced.Length / 1MB, 1)) MB (multi-arch: x64 + arm64)"
 } else {
     Write-Warning "Build finished but no installer file detected in $distDir."
 }

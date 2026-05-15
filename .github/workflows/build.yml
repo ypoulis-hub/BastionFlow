@@ -55,14 +55,23 @@ jobs:
       - name: Regenerate app icon
         run: pwsh -File tools/Generate-Icon.ps1
 
-      - name: Publish app (win-x64, framework-dependent)
+      - name: Publish (win-x64)
         run: |
           dotnet publish src/BastionFlow.App `
             --configuration Release `
             --runtime win-x64 `
             --self-contained false `
             -p:PublishSingleFile=false `
-            --output publish
+            --output publish-x64
+
+      - name: Publish (win-arm64)
+        run: |
+          dotnet publish src/BastionFlow.App `
+            --configuration Release `
+            --runtime win-arm64 `
+            --self-contained false `
+            -p:PublishSingleFile=false `
+            --output publish-arm64
 
       - name: Compile installer
         run: |

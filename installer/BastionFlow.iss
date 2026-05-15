@@ -32,8 +32,12 @@ OutputBaseFilename=BastionFlow-Setup-{#MyAppVersion}
 OutputDir=..\dist
 Compression=lzma2/max
 SolidCompression=yes
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+; Allow x64 hardware OR native ARM64. On ARM64 we install native ARM64 binaries
+; (no emulation overhead); on x64 we install x64. The .NET runtime, Azure CLI,
+; and msrdc dependencies all have native ARM64 builds that winget resolves
+; automatically.
+ArchitecturesAllowed=x64compatible arm64
+ArchitecturesInstallIn64BitMode=x64compatible arm64
 WizardStyle=modern
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
@@ -53,7 +57,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Files]
-Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Multi-arch payload: ship both x64 and arm64 trees, install one based on the
+; running CPU architecture. Inno's Check parameter is evaluated at install
+; time; files whose Check returns False are skipped entirely.
+Source: "..\publish-arm64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsArm64
+Source: "..\publish-x64\*";   DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not IsArm64
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
