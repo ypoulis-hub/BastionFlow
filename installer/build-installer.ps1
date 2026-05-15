@@ -81,6 +81,16 @@ if ($produced) {
     Write-Host ""
     Write-Host "Installer built: $($produced.FullName)" -ForegroundColor Green
     Write-Host "Size: $([math]::Round($produced.Length / 1MB, 1)) MB (multi-arch: x64 + arm64)"
+
+    # Also drop a copy into the workspace-level dist folder (one above the repo).
+    # The repo's own dist/ is gitignored; the workspace dist is OneDrive-synced
+    # so the installer is immediately reachable from any of Ioannis's PCs.
+    $workspaceDist = Split-Path -Parent $repo
+    $workspaceDist = Join-Path $workspaceDist 'dist'
+    if (-not (Test-Path $workspaceDist)) { New-Item -ItemType Directory -Path $workspaceDist -Force | Out-Null }
+    $copyTarget = Join-Path $workspaceDist $produced.Name
+    Copy-Item -Path $produced.FullName -Destination $copyTarget -Force
+    Write-Host "Also copied to workspace dist: $copyTarget" -ForegroundColor DarkGray
 } else {
     Write-Warning "Build finished but no installer file detected in $distDir."
 }
